@@ -1,34 +1,5 @@
 ///@ts-check
-var movementSpeed = 1.0;
-const COLORS = [
-    "#06031f",
-    "#721456",
-    "#de248e",
-    "#dc8660",
-    "#dae833",
-    "#d2eef5",
-    "#7ad3bd",
-    "#22b785",
-    "#168455",
-    "#0b5126",
-    "#11117c",
-    "#3643b4",
-    "#6093d9",
-    "#8dddf3",
-    "#d58df3",
-    "#b046e5",
-    "#7c2bab",
-    "#470982",
-    "#802645",
-    "#bf2742",
-    "#e06c72",
-    "#eda7b2",
-    "#afc1cd",
-    "#8d9cab",
-    "#636d7f",
-    "#393e54",
-];
-
+///<reference path="./index.d.ts" />
 class MovingElement {
     constructor(width, height, bodyText = null) {
         this.width = width;
@@ -69,7 +40,7 @@ class MovingElement {
             text.innerText = this.text;
 
             svg.append(text);
-            
+
             this.element.append(svg);
             this.element.style.background = "transparent";
         }
@@ -82,14 +53,24 @@ class MovingElement {
             this.height = this.element.clientHeight;
             this.width = this.element.clientWidth;
         }
+
+        var direction = Math.floor(Math.random() * 4);
+        if (direction == 0) { // NE
+            this.speedY *= -1;
+        } else if (direction == 1) { // NW
+            this.speedY *= -1;
+            this.speedX *= -1;
+        } else if (direction == 2) { // SW
+            this.speedX *= -1;
+        } else { //SE
+            // Nothing To do Here
+        }
     }
-    /*
-        <div id="tmp" style="position: absolute; top: 100; left: 100; width: 200px; height: auto;">
-            <svg viewBox="0 0 56 15">
-                <text x="0" y="11.5">Help Me!</text>
-            </svg>
-        </div>
-    */
+
+    async update() {
+        this.updatePosition();
+        this.updateColor();
+    }
 
     updatePosition() {
         this.element.style.left = "" + this.x;
@@ -97,17 +78,13 @@ class MovingElement {
     }
 
     updateColor() {
-        this.colorIndex++;
-        if (this.colorIndex > COLORS.length - 1)
-            this.colorIndex = 0;
-
         if (this.hasText)
             this.element.style.color = COLORS[this.colorIndex];
         else
             this.element.style.background = COLORS[this.colorIndex];
     }
 
-    animate() {
+    async animate() {
         var clientW = document.body.clientWidth;
         var clientH = document.body.clientHeight;
         var hit = false;
@@ -126,35 +103,51 @@ class MovingElement {
 
         this.updatePosition();
         if (hit) {
-            this.updateColor();
+            this.colorIndex++;
+            if (this.colorIndex > COLORS.length - 1)
+                this.colorIndex = 0;
         }
     }
 }
 
 /**@type {MovingElement[]} */
 var bouncingElements = [];
+/**@type {string[]} */
+var COLORS = [];
+var movementSpeed = 1.0;
+var animate = true;
+var debug = false;
 
-function init() {
+async function init() {
+    /**@type {IConfig} */
+    var config = await (await window.fetch("./index.json")).json();
+    COLORS = config.Colors;
+    debug = config.Debug || false;
+    movementSpeed = config.Speed || 1.0;
+
     document.body.style.background = "rgba(0,0,0,0)";
 
-    var background = document.createElement("div");
-    background.style.width = "100%";
-    background.style.height = "100%";
-    background.style.background = "rgba(0,0,0,0.25)";
-    document.body.appendChild(background);
-
-    bouncingElements.push(new MovingElement(200, 100));
-    bouncingElements.push(new MovingElement(200, 100, "BRB"));
+    for (var obj of config.Objects) {
+        var num = obj.duplicates || 0;
+        for (var i = 0; i < num + 1; i++) {
+            var o = new MovingElement(200, 100, obj.text !== null ? obj.text : null)
+            //o.animate();
+            bouncingElements.push(o);
+        }
+    }
 }
 
-function run() {
+async function run() {
+    /**@type {Array<Promise>} */
+    var updates = [];
     for (var element of bouncingElements)
-        element.animate();
+        //updates.push(element.animate());
+        await element.animate();
 
+    await Promise.all(updates);
     requestAnimationFrame(run);
 }
 
 window.onload = function () {
-    init();
-    run();
+    init().then(() => run());
 }
